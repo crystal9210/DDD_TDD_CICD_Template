@@ -1,0 +1,22 @@
+name: Lighthouse CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    lighthouse:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "18"
+            - run: npm ci
+            - run: npm run build
+            - run: npm run preview & # run the server in background
+            - name: Wait for server
+              run: npx wait-on http://localhost:3000
+            - run: npx lhci autorun

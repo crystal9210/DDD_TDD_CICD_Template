@@ -1,0 +1,13 @@
+version: 2
+
+updates:
+    - package-ecosystem: "npm" # Manage dependencies for npm (Node.js) projects
+      directory: "/" # Root directory (location of package.json)
+      schedule:
+          interval: "daily" # Check for updates every day
+          time: "06:00" # Run the check at 06:00 UTC (optional)
+      open-pull-requests-limit: 5 # Limit the number of open PRs to 5 (prevents PR overload)
+      security-updates-only: false # Create PRs for all updates, not just security fixes (set to true for security-only)
+      allow:
+          - dependency-type: "direct" # Include direct dependencies (listed in package.json)
+          - dependency-type: "indirect" # Include indirect (transitive) dependencies (dependencies of dependencies)

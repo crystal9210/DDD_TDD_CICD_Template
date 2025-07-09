@@ -1,0 +1,214 @@
+name: Continuous Integration
+
+on:
+    push:
+        branches:
+            - main
+            - develop
+    pull_request:
+        branches:
+            - main
+            - develop
+
+jobs:
+    # job1: quality and security checks
+    quality-checks:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4 # checkout: get the codebase
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4 # build the env with node for testing the codebase
+              with:
+                  node-version: 18
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Typescript type check
+              run: npx tsc --noEmit # TODO
+
+            - name: Lint Check (ESLint)
+              run: npm run lint
+
+            - name: Format Check (Prettier)
+              run: npm run format:check
+
+            - name: Security Audit (npm audit)
+              run: npm audit --audit-level=high
+
+            - name: CodeQL Initialize
+              uses: github/codeql-action/init@v3
+              with:
+                languages: javascript, typescript # you can add python, rust, go, ...etc.
+
+            - name: CodeQL Analyze
+              uses: github/codeql-action/analyze@v3
+
+
+    # job2: unit and integration tests
+    testing:
+        needs: quality-checks
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 18
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run Unit and Integration Tests (Jest)
+              run: npm run test:ci
+
+            - name: Collect Coverage Report
+              run: npm run test:ci -- --coverage
+
+            - name: Install Playwright Browsers
+              run: npx playwright install --with-deps
+
+            - name: Run E2E Tests (Playwright)
+              run: npm run test:e2e
+
+            - name: Upload Coverage to Codecov
+              uses: codecov/codecov-action@v4
+              with:
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  files: ./coverage/lcov.info
+                  fail_ci_if_error: true
+
+            - name: Run E2E Test Report
+              if: always() # Upload the report even if the test failed.
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-report
+                  path: playwright-report/
+                  retention-days: 7
+
+    # job3: build and type check
+    build:
+        needs: testing
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 18
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build Project
+              run: npm run build
+
+    # job4: deploy to Vercel preview (on PR or develop)
+    vercel-preview:
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+        needs: build
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 18
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Deploy to Vercel (Preview)
+              id: vercel_deploy
+              uses: amondnet/vercel-action@v25
+              with:
+                  vercel-token: ${{ secrets.VERCEL_TOKEN }}
+                  vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+                  vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+                  working-directory: .
+                  scope: ${{ secrets.VERCEL_ORG_ID }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  vercel-args: "--prebuilt"
+              env:
+                  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+            - name: Get Preview URL
+              run: echo "Vercel Preview URL: ${{ steps.vercel_deploy.outputs.preview-url }}"
+
+
+    # job5: e2e test on vercel preview
+    e2e-on-vercel:
+      if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+      needs: vercel-preview
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 18
+            cache: "npm"
+
+        - name: Install dependencies
+          run: npm ci
+
+        - name: Install Playwright Browsers
+          run: npx playwright install --with-deps
+
+        - name: Run E2E Tests on Vercel Preview
+          env:
+            PLAYWRIGHT_BASE_URL: ${{ needs.vercel-preview.outputs.preview-url }}
+          run: |
+            npx playwright test --project=chromium --reporter=html
+
+        - name: Upload Playwright Report
+          uses: actions/upload-artifact@v4
+          with:
+            name: playwright-report
+            path: playwright-report/
+            retention-days: 7
+
+    # job6: Deploy to Vercel Production (on main)
+    vercel-production:
+      if: github.ref == 'refs/heads/main'
+      needs: build
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 18
+            cache: "npm"
+
+        - name: Install dependencies
+          run: npm ci
+
+        - name: Deploy on Vercel (Production)
+          uses: amondnet/vercel-action@v25
+          with:
+            vercel-token: ${{ secrets.VERCEL_TOKEN }}
+            vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+            vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+            working-directory: .
+            scope: ${{ secrets.VERCEL_ORG_ID }}
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            vercel-args: '--prod'
+          env:
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
