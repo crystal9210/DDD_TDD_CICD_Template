@@ -16,14 +16,14 @@ jobs:
               run: npm ci # Step 2: Install all dependencies using npm ci for a clean and reproducible install
 
             - name: Snyk Test (Vulnerability Scan)
-              uses: snyk/actions/node@v4 # Step 3: Run Snyk's official GitHub Action (Node.js version, specify action version)
+              uses: snyk/actions/node@main # Step 3: Run Snyk's official GitHub Action (Node.js version, specify action version)
               env:
                   SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }} # Provide the Snyk authentication token from GitHub Secrets
               with:
                   args: --severity-threshold=high # Only fail if vulnerabilities of "high" severity or above are found
 
             - name: Snyk Monitor (Send to Dashboard)
-              uses: snyk/actions/node@v4 # Step 4: Send the dependency snapshot to Snyk's dashboard for continuous monitoring
+              uses: snyk/actions/node@main # Step 4: Send the dependency snapshot to Snyk's dashboard for continuous monitoring
               env:
                   SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }} # Provide the Snyk authentication token from GitHub Secrets
               with:

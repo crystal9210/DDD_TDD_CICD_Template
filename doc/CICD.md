@@ -205,7 +205,7 @@ jobs:
                   node-version: "18"
             - run: npm ci
             - run: npm run build
-            - run: npm run preview & # run the server in background
+            - run: npm run start & # run the server in background
             - name: Wait for server
               run: npx wait-on http://localhost:3000
             - run: npx lhci autorun
@@ -243,7 +243,7 @@ jobs:
                   node-version: "18"
             - run: npm ci
             - run: npm run build
-            - run: npm run preview & # run the server in background
+            - run: npm run start & # run the server in background
             - name: Wait for server
               run: npx wait-on http://localhost:3000
             - name: Run axe accessibility checks
